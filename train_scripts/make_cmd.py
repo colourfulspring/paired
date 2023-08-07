@@ -19,6 +19,7 @@ def generate_train_cmds(
         params['seed'] = start_seed + t + start_index
 
         cmd = [f'python -m train']
+        vscode_args = []
 
         trial_idx = t + start_index
         for k, v in params.items():
@@ -26,12 +27,13 @@ def generate_train_cmds(
                 v = f'{v}_{trial_idx}'
 
             cmd.append(f'--{k}={v}')
+            vscode_args.append(f"--{k}={v}")
 
         cmd = separator.join(cmd)
 
         cmds.append(cmd)
 
-    return cmds
+    return cmds, vscode_args
 
 
 def generate_all_params_for_grid(grid, defaults={}):
@@ -182,7 +184,7 @@ if __name__ == '__main__':
     # Print all commands
     count = 0
     for p in all_params:
-        cmds = generate_train_cmds(p,
+        cmds, vscode_launch_args = generate_train_cmds(p,
             num_trials=args.num_trials, 
             start_index=args.start_index, 
             newlines=True, 
@@ -192,6 +194,8 @@ if __name__ == '__main__':
         for c in cmds:
             print(c + '\n')
             count += 1
+        print('vscode launch args:\n')
+        print(json.dumps(vscode_launch_args) , '\n',)
 
     if args.count:
         print(f'Generated {count} commands.')
