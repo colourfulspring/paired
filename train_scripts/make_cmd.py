@@ -194,7 +194,7 @@ if __name__ == '__main__':
         for c in cmds:
             print(c + '\n')
             count += 1
-        print('vscode launch args:\n')
+        print('vscode launch.json args:\n')
         print(json.dumps(vscode_launch_args) , '\n',)
 
     if args.count:
