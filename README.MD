@@ -38,6 +38,13 @@ pip install -e .
 cd ..
 ```
 
+To install minihack package, make sure your system has installed these packages. Specifically, the content in () below shows packages that should be installed on Linux:
+* cmake
+* C/C++ compilers (gcc/g++)
+* some code including <bzlib.h> (libbz2-dev)
+* (bison)
+* (flex)
+
 ## Configuration
 Detailed descriptions of the various command-line arguments for the main training script, `train.py` can be found in [`arguments.py`](https://github.com/ucl-dark/paired/blob/master/arguments.py).
 
