@@ -49,82 +49,104 @@
 ### make_agent函数
 
 函数执行步骤：
-> :bulb: **Input:** 智能体名字name=, ParallelAdversarialVecEnv的实例venv，ArgumentParser生成的实参args。
+> :bulb: **Input:** 智能体名字name, ParallelAdversarialVecEnv的实例venv，ArgumentParser生成的实参args。
 1. 从name得知该智能体不是对手环境，从而获取venv的action_space和observation_space以及其他构建网络需要的参数。
 2. 调用model_for_env_agent函数，得到网络actor_critic。
 3. 根据网络actor_critic以及实参args的一部分生成PPO类实例algo，RolloutStorage类storage。
 4. 将algo和storage类组合为ACAgent类agent。
 
-### MultigridNetwork类（name='agent'）
+### MultigridNetwork类（默认为name='agent'或'adversary_agent'，若有括号则括号中为name='adversary_env'）
 
 问题：
 1. 该网络的结构如何？输入输出的维度大小是什么？表示什么意义？
 
-该网络的包含下面这些submodule：
-```
-OrderedDict([('image_conv', Sequential(
-  (0): Conv2d_tf(3, 16, kernel_size=(3, 3), stride=(1, 1), padding=VALID)
-  (1): Flatten(start_dim=1, end_dim=-1)
-  (2): ReLU()
-)), ('scalar_embed', Linear(in_features=4, out_features=5, bias=True)), ('rnn', RNN(
-  (rnn): LSTM(149, 256)
-)), ('actor', Sequential(
-  (0): Sequential(
-    (0): Linear(in_features=256, out_features=32, bias=True)
-    (1): Tanh()
-  )
-  (1): Categorical(
-    (linear): Linear(in_features=32, out_features=7, bias=True)
-  )
-)), ('critic', Sequential(
-  (0): Sequential(
-    (0): Linear(in_features=256, out_features=32, bias=True)
-    (1): Tanh()
-  )
-  (1): Linear(in_features=32, out_features=1, bias=True)
-))])
-```
-Categorical：包含了一个nn.Linear和一个distribution.Categorical，根据线性层的分布采样输出。
 
-输入(5,5,3)的image，输出(1,)的动作和(1,)价值。
+* actor_critic:
+    - MultigridNetwork
+        - **action_dim:** 1。似乎没用到。
+        - **conv_kernel_size:** 3。模型卷积核size。
+        - **conv_filters:** 16。模型卷积通道数。(128)
+        - **image_conv:** 模型卷积头。将(3,5,5)输入张量卷积+拉直+ReLU。
+        ```text
+        Sequential(
+            (0): Conv2d_tf(3, 16, kernel_size=(3, 3), stride=(1, 1), padding=VALID)
+            (1): Flatten(start_dim=1, end_dim=-1)
+            (2): ReLU()
+        )
+        ```
+        ```
+        Sequential(
+            (0): Conv2d_tf(3, 16, kernel_size=(3, 3), stride=(1, 1), padding=VALID)
+            (1): Flatten(start_dim=1, end_dim=-1)
+            (2): ReLU()
+        )
+        ```
+        
+        - **image_embedding_size:** 144。16通道卷积核对(3,5,5)张量做卷积操作，得到(3\*3)\*9=144维。
+        - **scalar_fc:** 5。标量嵌入后的维度。**具体干什么的还有待考证**。
+        - **scalar_embed:** 模型标量嵌入头。将(4,)输入通过线性层转化为(5,)输出。
+        ```
+        Linear(in_features=4, out_features=5, bias=True)
+        ```
+        - **preprocessed_input_size:** 149。RNN输入层size。包含被image_conv卷积一次后的144维和嵌入后的标量5维。
+        - **recurrent_hidden_size:** 256。RNN隐藏层size。
+        - **recurrent_arch:** 'lstm'。RNN结构。
+        - **rnn:** RNN网络。两个参数分别是网络的input_size和hidden_size。
+        ```
+        RNN(
+            (rnn): LSTM(149, 256)
+        )
+        ```
+        - **actor_fc_layers:** (32, 32)。动作头全连接层的维度。
+        - **actor:** 动作头。Categorical是带离散动作采样的线性层。
+        ```
+        Sequential(
+        (0): Sequential(
+            (0): Linear(in_features=256, out_features=32, bias=True)
+            (1): Tanh()
+        )
+        (1): Categorical(
+            (linear): Linear(in_features=32, out_features=7, bias=True)
+        )
+        )
+        ```
+        - **critic_fc_layers:** (32, 32)。价值头全连接层的维度。
+        - **critic:** 价值头。
 
-模型如何拼接的没看出来。
+        ```
+        Sequential(
+        (0): Sequential(
+            (0): Linear(in_features=256, out_features=32, bias=True)
+            (1): Tanh()
+        )
+        (1): Linear(in_features=32, out_features=1, bias=True)
+        )
+        ```
 
 ### MultigridNetwork类（name='adversary_env'）
 问题：
 1. 该网络的结构如何？输入输出的维度大小是什么？表示什么意义？
-该网络包含下面这些submodule:
-```
-OrderedDict([('image_conv', Sequential(
-  (0): Conv2d_tf(3, 128, kernel_size=(3, 3), stride=(1, 1), padding=VALID)
-  (1): Flatten(start_dim=1, end_dim=-1)
-  (2): ReLU()
-)), ('scalar_embed', Linear(in_features=53, out_features=10, bias=True)), ('rnn', RNN(
-  (rnn): LSTM(21692, 256)
-)), ('actor', Sequential(
-  (0): Sequential(
-    (0): Linear(in_features=256, out_features=32, bias=True)
-    (1): Tanh()
-  )
-  (1): Categorical(
-    (linear): Linear(in_features=32, out_features=169, bias=True)
-  )
-)), ('critic', Sequential(
-  (0): Sequential(
-    (0): Linear(in_features=256, out_features=32, bias=True)
-    (1): Tanh()
-  )
-  (1): Linear(in_features=32, out_features=1, bias=True)
-))])
-```
-输入输出待定。
 
-模型如何拼接的没看出来。
 
 2. 两个网络有什么区别？
 
+### PPO类
+algo： 
+参数为模型actor_critic和PPO算法需要的其他超参数。
+
 ### RolloutStorage类
-大概是用于存观测到的数据的。具体如何存没看出来。
+用于存储多个时间步多个进程，智能体在环境中交互的数据。
+* storage：(num_steps = 256, num_processes = 32)
+    - **obs:** 一个和observation_space同构的字典，存储智能体观测。也有'direction'和'image'2个键。所有值在observation_space原维度基础上扩充2个新维度(num_steps + 1, num_processes, ...)，表示时间步和进程。
+    - **recurrent_hidden_state_buffer_size:** 隐藏层buffer大小，与RNN结构有关。
+    - **recurrent_hidden_states:** 一个(num_steps + 1, num_processes, recurrent_hidden_state_buffer_size)的张量。存储RNN的隐藏层状态。
+    - **rewards, value_preds, returns:** 存储其他量的(num_steps + 1, num_processes, 1)张量。
+    - **action_log_dist, action_log_probs, actions:** 存储动作相关量的(num_steps + 1, num_processes, ...)张量。
+    - **level_seeds:** 存储随机数种子的(num_steps + 1, num_processes, 1)张量。
+
+### ACAgent类
+* agent: 包含algo和storage。
+* adversary_agent：包含algo和storage。以上两者相同
 
 ### AdversarialRunner类
 > :bulb: **Input:** 实参args。两个并行的训练环境venv, ued_venv，支持Protagonist和Adversary双方API。三个待训练的智能体Protagonist，Antagonist和Adversary enviroment。
