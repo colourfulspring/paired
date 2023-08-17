@@ -119,6 +119,7 @@
         (1): Linear(in_features=32, out_features=1, bias=True)
         )
         ```
+        - **forward():** 输入x，hxs，输出新的x和hxs。
 
 ### MultigridNetwork类（name='adversary_env'）
 问题：
@@ -145,7 +146,7 @@
         ```
         Linear(in_features=53, out_features=10, bias=True)
         ```
-        - **random_z_dim:** 50。随机向量的维度。**为什么要有随机向量还有待考证**。
+        - **random_z_dim:** 50。随机向量的维度。**其作用是增加adversary生成迷宫的随机性**。
         - **preprocessed_input_size:** 21692。RNN输入层size。包含被image_conv卷积一次后的21632维，嵌入后的标量10维和随机向量50维。
         - **recurrent_hidden_size:** 256。RNN隐藏层size。**21632维转成256维，是不是减少地有点多了。**
         - **recurrent_arch:** 'lstm'。RNN结构。
@@ -200,10 +201,13 @@
     - **rewards, value_preds, returns:** 存储其他量的(num_steps + 1, num_processes, 1)张量。
     - **action_log_dist, action_log_probs, actions:** 存储动作相关量的(num_steps + 1, num_processes, ...)张量。
     - **level_seeds:** 存储随机数种子的(num_steps + 1, num_processes, 1)张量。
+    
 
 ### ACAgent类
 * agent，adversary_env，adversary_agent分别包含不一样的algo和env。
     - **train():** 调用`algo.actor_critic.train()`将模型设置为训练模式。
+    - **act():** 调用`algo.actor_critic.act()`，
+    - **insert():** 调用`storage.insert()`
 
 
 ### AdversarialRunner类
@@ -219,7 +223,19 @@
     - **adversary_env_rollout_steps:** 52。Adversary enviroment约定的摆放步数。
     - **agent_returns:** deque([])。存储智能体的回报。
     - **adversary_agent_returns:** deque([])。存储对手环境的回报。
-    - **train():** 调用agent中每个值的`train()`方法。
+    - **train():** 调用agent中每个值（即三种不同agent）的`train()`方法。
+* **run():** 该函数的全过程即进行一次完整的训练。下面是各个函数调用过程。
+    - **ued_venv.reset()** 重置环境。
+    - :memo:**obs:** 一个字典，包含'image'，'time_step'，'random_z'三个键。每个键对应的张量size如下。`args.num_process=32`
+    ```
+    {'image': torch.Size([32, 3, 15, 15]), 'time_step': torch.Size([32, 1]), 'random_z': torch.Size([32, 50])}
+    ```
+    - **agent.storage.copy_obs_to_index(obs,0)** 将obs存入storage的下标0处。
+    - **循环adversary_env_rollout_steps次:**
+        - **agent.storage.get_obs(step)** 从storage的下标0处取出obs。
+        - 为什么要有masks ?
+        - **storage.get_recurrent_hidden_state():** 获取RNN隐藏状态。 
+        - **agent.act():** 
 
 ### Evaluator类
 测试类。
@@ -232,8 +248,18 @@
     ```
     - **num_episodes:** 10。由args指定。
 
+### 其他args中的超参数作用
+* **xpid:** 'ued-MultiGrid-GoalLastAdversarial-v0-paired-lstm256ae-lr0.0001-epoch5-mb1-v0.5-henv0.0-ha0.0-tl_0'。表示一次运行的唯一ID。
+* **log_dir:** ~/logs/paired。日志保存目录。
+* **verbose:** True。在终端打印日志是否详尽。
+* **checkpoint:** True。是否读取checkpoint。
+* **disable_checkpoint:** False。禁止保存checkpoint。
+* **log_interval:** 存日志一次的时间步周期数。
+* **screenshot_interval:** 截屏一次的时间步周期数。
+* **test_interval:** 测试一次智能体的时间步周期数。
+* **save_interval:** 保存一次check_point的时间戳间隔长度。
+* **render:** 生成对手环境时是否渲染。
 
-
-### 其他
+### Python语言的相关问题
 * zip函数将元组的列表转换为列表的元组。可以通过赋值和迭代两种方法取出元素。
 * 创建一个新的Process时会深拷贝传入给worker的参数。
